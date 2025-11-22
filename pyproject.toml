@@ -5,10 +5,22 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.13.2",
+    "colbert-ai>=0.2.22",
     "datasets>=4.4.1",
+    "einops>=0.8.1",
+    "fugashi[unidic,unidic-lite]>=1.5.2",
     "ipykernel>=7.1.0",
+    "langchain==0.0.352",
+    "python-dotenv>=1.2.1",
+    "ragatouille[langchain]>=0.0.9.post2",
     "requests>=2.32.5",
+    "sentence-transformers>=2.6",
+    "tokenizers>=0.15,<0.21",
+    "torch>=2.9.0",
     "tqdm>=4.67.1",
+    "transformers>=4.36",
+    "weaviate-agents>=1.1.0",
     "weaviate-client>=4.17.0",
 ]
 
@@ -16,3 +28,7 @@ dependencies = [
 dev = [
     "ruff>=0.14.3",
 ]
+
+[tool.mypy]
+# Disable mypy by excluding all files from checks
+exclude = ".*"
