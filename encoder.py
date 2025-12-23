@@ -232,7 +232,8 @@ def main():
         amp=use_fp16,  # 自動混合精度（CUDA時のみ有効）
         gpus=[0] if device == "cuda" else [],  # CUDA時のみGPU設定
     )
-    ckpt = Checkpoint("jinaai/jina-colbert-v2", colbert_config=cfg)
+    # ckpt = Checkpoint("jinaai/jina-colbert-v2", colbert_config=cfg)
+    ckpt = Checkpoint("bclavie/JaColBERT", colbert_config=cfg)
     ckpt = ckpt.to(device)
 
     # MPS使用時は警告を表示
@@ -294,7 +295,8 @@ def main():
                 "ids": ids_buf,  # List[str]
                 "embeddings": embs,  # List[Tensor[n_tokens, dim]]  可変長
                 "meta": {
-                    "model": "jinaai/jina-colbert-v2",
+                    # "model": "jinaai/jina-colbert-v2",
+                    "model": "bclavie/JaColBERT",
                     "dim": int(embs[0].shape[-1]) if embs else cfg.dim,
                     "doc_maxlen": cfg.doc_maxlen,
                     "created_on": torch.tensor([])
@@ -322,7 +324,8 @@ def main():
             "ids": ids_buf,
             "embeddings": embs,
             "meta": {
-                "model": "jinaai/jina-colbert-v2",
+                # "model": "jinaai/jina-colbert-v2",
+                "model": "bclavie/JaColBERT",
                 "dim": int(embs[0].shape[-1]) if embs else cfg.dim,
                 "doc_maxlen": cfg.doc_maxlen,
             },
