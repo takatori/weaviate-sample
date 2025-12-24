@@ -12,6 +12,14 @@ import pandas as pd
 from colbert.infra import ColBERTConfig
 from colbert.modeling.checkpoint import Checkpoint
 
+# サポートするモデル一覧
+SUPPORTED_MODELS = {
+    "jacolbert": "bclavie/JaColBERT",
+    "jacolbert-v2.5": "answerdotai/JaColBERTv2.5",
+}
+
+DEFAULT_MODEL = "jacolbert"
+
 
 # ---------- I/O: JQaRA ローダ（JSONL/JSON/CSV） ----------
 def detect_format(path: str) -> str:
@@ -207,9 +215,21 @@ def main():
     )
     parser.add_argument("--sep", default="\n\n", help="title と text の結合セパレータ")
     parser.add_argument("--fp16", action="store_true", help="FP16 推論（GPU推奨）")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        choices=list(SUPPORTED_MODELS.keys()),
+        help=f"使用するColBERTモデル（デフォルト: {DEFAULT_MODEL}）。選択肢: {', '.join(SUPPORTED_MODELS.keys())}",
+    )
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    # モデル名を解決
+    model_name = SUPPORTED_MODELS[args.model]
+    print(f"Using model: {model_name}")
+
+    # 出力ディレクトリをモデルごとにサブディレクトリ化
+    output_dir = os.path.join(args.output_dir, args.model)
+    os.makedirs(output_dir, exist_ok=True)
 
     # ColBERT Checkpoint 準備
     # Appleシリコン対応: MPS > CUDA > CPU の順で選択
@@ -228,12 +248,11 @@ def main():
         doc_maxlen=300,  # 必要に応じて調整（長文はトークン数↑→ベクトル数↑）
         query_maxlen=64,
         mask_punctuation=True,
-        dim=128,  # jina-colbert-v2 既定の埋め込み次元（モデル側に従う）
+        dim=128,  # ColBERT既定の埋め込み次元（モデル側に従う）
         amp=use_fp16,  # 自動混合精度（CUDA時のみ有効）
         gpus=[0] if device == "cuda" else [],  # CUDA時のみGPU設定
     )
-    # ckpt = Checkpoint("jinaai/jina-colbert-v2", colbert_config=cfg)
-    ckpt = Checkpoint("bclavie/JaColBERT", colbert_config=cfg)
+    ckpt = Checkpoint(model_name, colbert_config=cfg)
     ckpt = ckpt.to(device)
 
     # MPS使用時は警告を表示
@@ -243,18 +262,18 @@ def main():
         )
 
     total = count_records(args.input)
-    done_ids = list_done_ids(args.output_dir)
+    done_ids = list_done_ids(output_dir)
     already = len(done_ids)
 
     print(f"Total records in input: {total}")
-    print(f"Already processed (found in {args.output_dir}): {already}")
+    print(f"Already processed (found in {output_dir}): {already}")
     remaining = total - already
     if remaining <= 0:
         print("All records already processed. Nothing to do.")
         return
 
     # 再開：既存の batch_*.pt の最大インデックスから続きの番号を振る
-    existing_batches = sorted(glob.glob(os.path.join(args.output_dir, "batch_*.pt")))
+    existing_batches = sorted(glob.glob(os.path.join(output_dir, "batch_*.pt")))
     next_batch_idx = 0
     if existing_batches:
         try:
@@ -295,8 +314,7 @@ def main():
                 "ids": ids_buf,  # List[str]
                 "embeddings": embs,  # List[Tensor[n_tokens, dim]]  可変長
                 "meta": {
-                    # "model": "jinaai/jina-colbert-v2",
-                    "model": "bclavie/JaColBERT",
+                    "model": model_name,
                     "dim": int(embs[0].shape[-1]) if embs else cfg.dim,
                     "doc_maxlen": cfg.doc_maxlen,
                     "created_on": torch.tensor([])
@@ -304,7 +322,7 @@ def main():
                     .dtype.__str__(),  # 単なる占位情報
                 },
             }
-            out_path = os.path.join(args.output_dir, f"batch_{next_batch_idx:05d}.pt")
+            out_path = os.path.join(output_dir, f"batch_{next_batch_idx:05d}.pt")
             torch.save(payload, out_path)
             next_batch_idx += 1
 
@@ -324,13 +342,12 @@ def main():
             "ids": ids_buf,
             "embeddings": embs,
             "meta": {
-                # "model": "jinaai/jina-colbert-v2",
-                "model": "bclavie/JaColBERT",
+                "model": model_name,
                 "dim": int(embs[0].shape[-1]) if embs else cfg.dim,
                 "doc_maxlen": cfg.doc_maxlen,
             },
         }
-        out_path = os.path.join(args.output_dir, f"batch_{next_batch_idx:05d}.pt")
+        out_path = os.path.join(output_dir, f"batch_{next_batch_idx:05d}.pt")
         torch.save(payload, out_path)
         pbar.update(len(ids_buf))
 
